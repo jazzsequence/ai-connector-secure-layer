@@ -1,0 +1,43 @@
+{
+    "name": "jazzsequence/ai-connector-secure-layer",
+    "type": "wordpress-plugin",
+    "description": "Keeps LLM API keys out of the WordPress database. Fetches keys from Pantheon Secrets or environment variables on-demand at the moment an LLM request fires — never stored in wp_options, never pre-loaded as a PHP constant.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Chris Reynolds",
+            "email": "chris.reynolds@pantheon.io",
+            "homepage": "https://github.com/jazzsequence"
+        }
+    ],
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11",
+        "pantheon-systems/wpunit-helpers": "*",
+        "pantheon-systems/pantheon-wp-coding-standards": "*",
+        "roave/security-advisories": "dev-latest"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "pantheon-systems/wpunit-helpers": true
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AICSL\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:integration": "phpunit -c phpunit-integration.xml",
+        "lint": "@lint:phpcs",
+        "lint:phpcs": "phpcs",
+        "lint:phpcbf": "phpcbf"
+    }
+}
