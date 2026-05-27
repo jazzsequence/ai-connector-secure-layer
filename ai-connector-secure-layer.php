@@ -3,7 +3,7 @@
  * Plugin Name:       AI Connector Secure Layer
  * Plugin URI:        https://github.com/jazzsequence/ai-connector-secure-layer
  * Description:       Keeps LLM API keys out of the WordPress database. Fetches keys from Pantheon Secrets or environment variables on-demand at request time — never stored in wp_options, never pre-loaded as PHP constants. Compatible with WordPress 7.0 AI Connectors.
- * Version:           0.2.0
+ * Version:           1.0.0
  * Requires at least: 7.0
  * Requires PHP:      8.2
  * Author:            Chris Reynolds
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AICSL_VERSION', '0.2.0' );
+define( 'AICSL_VERSION', '1.0.0' );
 
 require_once __DIR__ . '/includes/secrets.php';
 require_once __DIR__ . '/includes/class-lazy-auth.php';
