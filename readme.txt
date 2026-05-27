@@ -1,5 +1,5 @@
 === AI Connector Secure Layer ===
-Contributors: jazzsequence
+Contributors: jazzs3quence
 Tags: ai, llm, api-key, security, pantheon
 Requires at least: 7.0
 Tested up to: 7.0
