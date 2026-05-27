@@ -22,6 +22,7 @@ Example prompt:
 ### Reviewer approval flag
 
 The **reviewer agent** writes `reviewer-approved` using the Write tool after deciding APPROVE.
+The file must contain the current Unix timestamp (seconds since epoch) with no trailing newline — use `date +%s` via Bash to get it, then write that value to the file.
 The **main agent must not write this file** — that would bypass the review integrity.
 
 ### User bypass (your own commits only)
