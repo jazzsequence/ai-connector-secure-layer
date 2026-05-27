@@ -84,7 +84,7 @@ jobs:
         run: chmod +x bin/*.sh
 
       - name: Install WordPress test suite
-        run: composer test:install:withdb
+        run: composer test:install
 
       - name: Run integration tests
         run: composer test:integration
