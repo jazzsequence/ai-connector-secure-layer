@@ -1,5 +1,8 @@
 # AI Connector Secure Layer
 
+![GitHub License](https://img.shields.io/github/license/jazzsequence/ai-connector-secure-layer)
+[![CI](https://github.com/jazzsequence/ai-connector-secure-layer/actions/workflows/ci.yml/badge.svg)](https://github.com/jazzsequence/ai-connector-secure-layer/actions/workflows/ci.yml)
+
 Keeps LLM API keys out of the WordPress database. Works with WordPress 7.0 AI Connectors and Pantheon Secrets.
 
 ## The problem
