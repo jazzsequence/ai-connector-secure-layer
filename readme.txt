@@ -3,7 +3,7 @@ Contributors: jazzs3quence
 Tags: ai, llm, api-key, security, pantheon
 Requires at least: 7.0
 Tested up to: 7.0
-Requires PHP: 8.1
+Requires PHP: 8.2
 Stable tag: 0.2.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT

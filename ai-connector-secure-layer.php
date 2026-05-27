@@ -5,9 +5,9 @@
  * Description:       Keeps LLM API keys out of the WordPress database. Fetches keys from Pantheon Secrets or environment variables on-demand at request time — never stored in wp_options, never pre-loaded as PHP constants. Compatible with WordPress 7.0 AI Connectors.
  * Version:           0.2.0
  * Requires at least: 7.0
- * Requires PHP:      8.1
+ * Requires PHP:      8.2
  * Author:            Chris Reynolds
- * Author URI:        https://github.com/jazzsequence
+ * Author URI:        https://next.jazzsequence.com
  * License:           MIT
  * License URI:       https://opensource.org/licenses/MIT
  * Text Domain:       ai-connector-secure-layer
