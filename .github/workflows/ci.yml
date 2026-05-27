@@ -15,7 +15,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           tools: composer
           coverage: none
 
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php: ['8.1', '8.2', '8.3']
+        php: ['8.2', '8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@v4
 
@@ -45,11 +45,14 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       - name: Run unit tests
-        run: composer test
+        run: composer test:phpunit
 
   integration-tests:
-    name: Integration tests
+    name: Integration tests (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
     services:
       mysql:
         image: mysql:8.0
@@ -67,15 +70,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up PHP
+      - name: Set up PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: ${{ matrix.php }}
           tools: composer
           coverage: none
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
+
+      - name: Make bin scripts executable
+        run: chmod +x bin/*.sh
 
       - name: Install WordPress test suite
         run: composer test:install:withdb
