@@ -14,10 +14,11 @@
         "php": ">=8.1"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11",
-        "pantheon-systems/wpunit-helpers": "*",
         "pantheon-systems/pantheon-wp-coding-standards": "*",
-        "roave/security-advisories": "dev-latest"
+        "pantheon-systems/wpunit-helpers": "*",
+        "phpunit/phpunit": "^9.0",
+        "roave/security-advisories": "dev-latest",
+        "yoast/phpunit-polyfills": "^4.0"
     },
     "config": {
         "optimize-autoloader": true,
@@ -34,8 +35,15 @@
         }
     },
     "scripts": {
-        "test": "phpunit",
-        "test:integration": "phpunit -c phpunit-integration.xml",
+        "test:phpunit": "@phpunit",
+        "test:integration": "phpunit -c phpunit-integration.xml --do-not-cache-result",
+        "test": [
+            "@test:phpunit",
+            "@test:integration"
+        ],
+        "test:install": "bin/install-local-tests.sh --skip-db=true",
+		"test:install:withdb": "bin/install-local-tests.sh",
+        "phpunit": "phpunit --do-not-cache-result",
         "lint": "@lint:phpcs",
         "lint:phpcs": "phpcs",
         "lint:phpcbf": "phpcbf"
