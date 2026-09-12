@@ -23,6 +23,18 @@ function aicsl_manually_load_plugin(): void {
 }
 tests_add_filter( 'muplugins_loaded', 'aicsl_manually_load_plugin' );
 
+/*
+ * Mock pantheon_get_secret() so the Pantheon Secrets path is exercisable in
+ * integration tests. On a real Pantheon environment the function is already
+ * defined by the platform's config/application.php, and this guard leaves it
+ * alone.
+ */
+if ( ! function_exists( 'pantheon_get_secret' ) ) {
+	function pantheon_get_secret( string $key ): ?string {
+		return $GLOBALS['_test_pantheon_secrets'][ $key ] ?? null;
+	}
+}
+
 require $_tests_dir . '/includes/bootstrap.php';
 
 // Loaded after WP bootstraps so WP AI Client classes are available.

@@ -14,10 +14,19 @@ use WordPress\AiClient\AiClient;
 
 class ConnectorsTest extends WP_UnitTestCase {
 
+	/**
+	 * Value of $pagenow before a test changed it.
+	 *
+	 * @var string|null
+	 */
+	private $original_pagenow;
+
 	protected function setUp(): void {
 		parent::setUp();
+		$this->original_pagenow = $GLOBALS['pagenow'] ?? null;
 		putenv( 'ANTHROPIC_API_KEY' );
 		putenv( 'GOOGLE_API_KEY' );
+		unset( $GLOBALS['_test_pantheon_secrets'] );
 
 		// Register a stub anthropic provider so inject_lazy_auth() can set
 		// authentication on it without requiring the real provider plugin.
@@ -31,6 +40,15 @@ class ConnectorsTest extends WP_UnitTestCase {
 	protected function tearDown(): void {
 		putenv( 'ANTHROPIC_API_KEY' );
 		putenv( 'GOOGLE_API_KEY' );
+		putenv( 'PANTHEON_SITE_NAME' );
+		unset( $GLOBALS['_test_pantheon_secrets'] );
+		remove_all_filters( 'aicsl_is_pantheon_site' );
+
+		if ( null === $this->original_pagenow ) {
+			unset( $GLOBALS['pagenow'] );
+		} else {
+			$GLOBALS['pagenow'] = $this->original_pagenow;
+		}
 		// Clean up any options we may have set.
 		delete_option( 'connectors_ai_anthropic_api_key' );
 		delete_option( 'connectors_ai_google_api_key' );
@@ -152,7 +170,7 @@ class ConnectorsTest extends WP_UnitTestCase {
 	// script_module_data filter
 	// -------------------------------------------------------------------------
 
-	public function test_script_module_data_sets_key_source_to_constant_when_secret_configured(): void {
+	public function test_script_module_data_sets_key_source_to_env_when_env_var_configured(): void {
 		putenv( 'ANTHROPIC_API_KEY=sk-ant-test' );
 
 		$input = [
@@ -169,6 +187,31 @@ class ConnectorsTest extends WP_UnitTestCase {
 
 		$output = \AICSL\Connectors\filter_script_module_data( $input );
 
+		// Core already resolves env vars itself as of 7.1; reporting 'constant'
+		// here would mislabel a key that really does come from the environment.
+		$this->assertSame( 'env', $output['connectors']['anthropic']['authentication']['keySource'] );
+		$this->assertTrue( $output['connectors']['anthropic']['authentication']['isConnected'] );
+	}
+
+	public function test_script_module_data_sets_key_source_to_constant_for_pantheon_secret(): void {
+		$GLOBALS['_test_pantheon_secrets']['anthropic_api_key'] = 'sk-ant-from-pantheon';
+
+		$input = [
+			'connectors' => [
+				'anthropic' => [
+					'type'           => 'ai_provider',
+					'authentication' => [
+						'keySource'   => 'none',
+						'isConnected' => false,
+					],
+				],
+			],
+		];
+
+		$output = \AICSL\Connectors\filter_script_module_data( $input );
+
+		// Core has no 'secret' key source; 'constant' is the closest match for
+		// "set outside the database and not editable from this form".
 		$this->assertSame( 'constant', $output['connectors']['anthropic']['authentication']['keySource'] );
 		$this->assertTrue( $output['connectors']['anthropic']['authentication']['isConnected'] );
 	}
@@ -211,5 +254,88 @@ class ConnectorsTest extends WP_UnitTestCase {
 
 		$this->assertSame( 'none', $output['connectors']['akismet']['authentication']['keySource'] );
 		putenv( 'AKISMET_API_KEY' );
+	}
+
+	// -------------------------------------------------------------------------
+	// admin notices
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Captures show_admin_notices() output on the Connectors screen.
+	 */
+	private function render_notices(): string {
+		$GLOBALS['pagenow'] = 'options-connectors.php';
+
+		ob_start();
+		\AICSL\Connectors\show_admin_notices();
+		return (string) ob_get_clean();
+	}
+
+	public function test_admin_notice_is_not_rendered_outside_the_connectors_screen(): void {
+		$GLOBALS['pagenow'] = 'options-general.php';
+
+		ob_start();
+		\AICSL\Connectors\show_admin_notices();
+		$output = (string) ob_get_clean();
+
+		$this->assertSame( '', $output );
+	}
+
+	public function test_admin_notice_shows_terminus_command_on_pantheon(): void {
+		add_filter( 'aicsl_is_pantheon_site', '__return_true' );
+
+		$output = $this->render_notices();
+
+		$this->assertStringContainsString( 'Pantheon Secrets', $output );
+		$this->assertStringContainsString( 'terminus secret:site:set', $output );
+		$this->assertStringContainsString( 'anthropic_api_key', $output );
+		$this->assertStringNotContainsString( 'ANTHROPIC_API_KEY=YOUR_KEY', $output );
+	}
+
+	public function test_admin_notice_shows_env_var_off_pantheon(): void {
+		add_filter( 'aicsl_is_pantheon_site', '__return_false' );
+
+		$output = $this->render_notices();
+
+		$this->assertStringContainsString( 'ANTHROPIC_API_KEY=YOUR_KEY', $output );
+		$this->assertStringNotContainsString( 'terminus', $output );
+		$this->assertStringNotContainsString( 'Pantheon Secrets', $output );
+	}
+
+	public function test_admin_notice_omits_providers_that_already_have_a_secret(): void {
+		add_filter( 'aicsl_is_pantheon_site', '__return_false' );
+		putenv( 'ANTHROPIC_API_KEY=sk-ant-test' );
+
+		$output = $this->render_notices();
+
+		$this->assertStringNotContainsString( 'ANTHROPIC_API_KEY=YOUR_KEY', $output );
+	}
+
+	public function test_terminus_site_name_prefers_the_pantheon_env_var(): void {
+		putenv( 'PANTHEON_SITE_NAME=my-real-site' );
+
+		$this->assertSame( 'my-real-site', \AICSL\Connectors\get_terminus_site_name() );
+	}
+
+	public function test_terminus_site_name_falls_back_to_a_slug_of_the_site_title(): void {
+		$this->assertSame(
+			sanitize_title( get_bloginfo( 'name' ) ),
+			\AICSL\Connectors\get_terminus_site_name()
+		);
+	}
+
+	public function test_terminus_command_uses_the_pantheon_site_name(): void {
+		add_filter( 'aicsl_is_pantheon_site', '__return_true' );
+		putenv( 'PANTHEON_SITE_NAME=my-real-site' );
+
+		$output = $this->render_notices();
+
+		$this->assertStringContainsString( 'terminus secret:site:set my-real-site', $output );
+	}
+
+	public function test_is_pantheon_site_is_filterable(): void {
+		add_filter( 'aicsl_is_pantheon_site', '__return_false' );
+
+		$this->assertFalse( \AICSL\Connectors\is_pantheon_site() );
 	}
 }

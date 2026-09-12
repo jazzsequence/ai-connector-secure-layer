@@ -2,9 +2,9 @@
 Contributors: jazzs3quence
 Tags: ai, llm, api-key, security, pantheon
 Requires at least: 7.0
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: MIT
 License URI: https://opensource.org/licenses/MIT
 
@@ -67,7 +67,11 @@ This plugin intentionally blocks that form from saving keys to the database. The
 
 = Does this work without Pantheon? =
 
-Yes — set standard environment variables at the server level. The plugin checks Pantheon Secrets first, then falls back to env vars.
+Yes — set standard environment variables at the server level. The plugin checks Pantheon Secrets first, then falls back to env vars. Off Pantheon, the admin notice shows the environment variable to set rather than a Terminus command.
+
+= WordPress 7.1 reads API keys from environment variables on its own. What does this plugin still do? =
+
+Core resolves `{PROVIDER}_API_KEY` environment variables and constants for AI connectors by itself, so on an env-var-only site core already shows the provider as externally configured. This plugin adds two things on top: it blocks connector API keys from being written to `wp_options` at all, and it resolves keys from Pantheon Secrets, which core knows nothing about.
 
 = Will AI features work normally? =
 
@@ -78,6 +82,14 @@ Yes. The key is fetched at the moment each LLM request is made. From WordPress's
 Update the Pantheon Secret or env var. The next LLM request automatically picks up the new value — no WordPress cache flush or plugin deactivation needed.
 
 == Changelog ==
+
+= 1.1.0 =
+* Admin notice is now host-aware: non-Pantheon sites get the environment variable to set instead of a Terminus command they cannot run
+* Terminus command examples use `PANTHEON_SITE_NAME` when it is available, instead of guessing the site name from the site title
+* The Connectors UI now reports the key source that the key actually came from (`env` for environment variables, `constant` for Pantheon Secrets) rather than always reporting `constant`
+* New `AICSL\Secrets\get_secret_source()` reports where a provider's key is configured without returning the key itself; presence checks no longer pull the key value into the caller's scope
+* New `aicsl_is_pantheon_site` filter overrides Pantheon detection, for a Pantheon site that deliberately configures keys through environment variables
+* Tested up to WordPress 7.1
 
 = 1.0.0 =
 * Initial public release

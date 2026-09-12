@@ -56,7 +56,7 @@ See the detailed threat model notes in the [Security Model](#security-model) sec
 composer require jazzsequence/ai-connector-secure-layer
 ```
 
-Activate the plugin, then install an AI provider plugin. **Do not enter API keys in Settings → Connectors** — use Terminus instead.
+Activate the plugin, then install an AI provider plugin. **Do not enter API keys in Settings → Connectors** — use Terminus (on Pantheon) or an environment variable (everywhere else) instead.
 
 ## Configuration (Pantheon)
 
@@ -88,21 +88,30 @@ GOOGLE_API_KEY=YOUR_GOOGLE_KEY
 
 **Convention:** `strtoupper({provider_id}) . '_API_KEY'`
 
+This is the same variable name WordPress 7.1 and `php-ai-client` look for on their own, so an env-var-only site already gets a working, read-only connector without this plugin. What the plugin adds on a site like that is the `wp_options` write block — nothing can put a key in the database, even by mistake. Its Pantheon Secrets support is the part core has no equivalent for.
+
 ## User experience
 
 ### Before configuring a key
 
-Settings → Connectors shows the provider with a "Set up" button and an admin notice:
+Settings → Connectors shows the provider with a "Set up" button and an admin notice. On Pantheon:
 
 > **AI keys managed via Pantheon Secrets**
 > This site manages AI provider API keys through Pantheon Secrets — not through this form.
 > Keys entered here cannot be saved. To connect a provider, run:
 > `terminus secret:site:set your-site anthropic_api_key YOUR_KEY`
 
-### After configuring via Terminus
+Everywhere else, the same notice names the environment variable instead:
+
+> **AI keys managed outside the database**
+> This site reads AI provider API keys from environment variables — not from this form.
+> Keys entered here cannot be saved. To connect a provider, set:
+> `ANTHROPIC_API_KEY=YOUR_KEY`
+
+### After configuring the key
 
 The provider shows:
-- Read-only field with "This API key is configured as a constant."
+- Read-only field with the key masked — labelled as configured outside WordPress. Keys from Pantheon Secrets report as `constant`; keys from an environment variable report as `env`, matching what core detects on its own
 - Green "Connected" badge
 - No input field — nothing to save
 
