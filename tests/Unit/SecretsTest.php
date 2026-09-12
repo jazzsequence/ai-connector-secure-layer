@@ -169,12 +169,17 @@ class SecretsTest extends TestCase {
 	 */
 	public static function secret_configuration_provider(): array {
 		return [
-			'pantheon only'            => [ 'pantheon-key', false, 'pantheon', 'pantheon-key' ],
-			'env only'                 => [ null, 'env-key', 'env', 'env-key' ],
-			'pantheon wins over env'   => [ 'pantheon-key', 'env-key', 'pantheon', 'pantheon-key' ],
+			'pantheon only'             => [ 'pantheon-key', false, 'pantheon', 'pantheon-key' ],
+			'env only'                  => [ null, 'env-key', 'env', 'env-key' ],
+			'pantheon wins over env'    => [ 'pantheon-key', 'env-key', 'pantheon', 'pantheon-key' ],
 			'empty pantheon falls back' => [ '', 'env-key', 'env', 'env-key' ],
-			'empty env is not a key'   => [ null, '', null, null ],
-			'nothing configured'       => [ null, false, null, null ],
+			'empty env is not a key'    => [ null, '', null, null ],
+			'nothing configured'        => [ null, false, null, null ],
+			// "0" is discarded from Pantheon (! empty) but kept from env ('' !== $v).
+			// Asymmetric, pre-dates resolve_secret(), pinned here so a future tidy-up
+			// of either predicate is a deliberate choice rather than an accident.
+			'zero from pantheon falls back to env' => [ '0', 'env-key', 'env', 'env-key' ],
+			'zero from env is a key'    => [ null, '0', 'env', '0' ],
 		];
 	}
 

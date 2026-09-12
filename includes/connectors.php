@@ -6,7 +6,8 @@
  *   wp_connectors_init  — blocks DB writes for all AI connector options
  *   init:21             — injects Lazy_Auth into the AI client registry
  *   script_module_data_options-connectors-wp-admin:11 — updates UI state for configured providers
- *   admin_notices       — Terminus instructions for unconfigured providers on the Connectors page
+ *   admin_notices       — setup instructions for unconfigured providers on the Connectors page
+ *                         (Terminus commands on Pantheon, environment variables elsewhere)
  *
  * @package AICSL
  */

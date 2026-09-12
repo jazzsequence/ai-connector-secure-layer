@@ -308,7 +308,41 @@ class ConnectorsTest extends WP_UnitTestCase {
 
 		$output = $this->render_notices();
 
+		// The positive assertion matters: without it this test would also pass if
+		// the notice rendered nothing at all.
+		$this->assertStringContainsString( 'GOOGLE_API_KEY=YOUR_KEY', $output );
 		$this->assertStringNotContainsString( 'ANTHROPIC_API_KEY=YOUR_KEY', $output );
+	}
+
+	public function test_admin_notice_omits_providers_configured_via_pantheon_secret(): void {
+		add_filter( 'aicsl_is_pantheon_site', '__return_true' );
+		$GLOBALS['_test_pantheon_secrets']['anthropic_api_key'] = 'sk-ant-from-pantheon';
+
+		$output = $this->render_notices();
+
+		$this->assertStringContainsString( 'google_api_key', $output );
+		$this->assertStringNotContainsString( 'anthropic_api_key', $output );
+	}
+
+	public function test_admin_notice_is_skipped_when_every_provider_is_configured(): void {
+		add_filter( 'aicsl_is_pantheon_site', '__return_false' );
+
+		// Cover every registered AI provider, not just the two built-ins we know by name.
+		foreach ( wp_get_connectors() as $id => $data ) {
+			if ( 'ai_provider' === ( $data['type'] ?? '' ) ) {
+				putenv( \AICSL\Secrets\get_env_var_name( $id ) . '=configured' );
+			}
+		}
+
+		$output = $this->render_notices();
+
+		foreach ( wp_get_connectors() as $id => $data ) {
+			if ( 'ai_provider' === ( $data['type'] ?? '' ) ) {
+				putenv( \AICSL\Secrets\get_env_var_name( $id ) );
+			}
+		}
+
+		$this->assertSame( '', $output );
 	}
 
 	public function test_terminus_site_name_prefers_the_pantheon_env_var(): void {
@@ -318,10 +352,9 @@ class ConnectorsTest extends WP_UnitTestCase {
 	}
 
 	public function test_terminus_site_name_falls_back_to_a_slug_of_the_site_title(): void {
-		$this->assertSame(
-			sanitize_title( get_bloginfo( 'name' ) ),
-			\AICSL\Connectors\get_terminus_site_name()
-		);
+		update_option( 'blogname', 'My Example Site' );
+
+		$this->assertSame( 'my-example-site', \AICSL\Connectors\get_terminus_site_name() );
 	}
 
 	public function test_terminus_command_uses_the_pantheon_site_name(): void {
