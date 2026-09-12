@@ -89,15 +89,17 @@ LLM request (e.g. Gutenberg AI feature)
 
 - `includes/class-lazy-auth.php` — `AICSL\Lazy_Auth` extends `ApiKeyRequestAuthentication` with an empty placeholder key at construction. `getApiKey()` fetches the real key lazily. `authenticateRequest()` is a fallback for providers that don't override it; Anthropic and Google call `getApiKey()` directly.
 
-- `includes/secrets.php` — `AICSL\Secrets` namespace. Three pure functions handle all secret resolution: `get_secret_name()` (→ `{provider_id}_api_key`), `get_env_var_name()` (→ `PROVIDER_API_KEY`), `get_secret_for_provider()` (Pantheon Secrets → env var → null).
+- `includes/secrets.php` — `AICSL\Secrets` namespace. Pure functions handle all secret resolution. `resolve_secret()` is the single source of truth, walking Pantheon Secrets → env var → nothing and returning `[ $source, $value ]`; `get_secret_source()` (→ `'pantheon'`, `'env'`, or `null`) and `get_secret_for_provider()` (→ key or `null`) are thin wrappers around it, so the two can never disagree about which source wins. `has_secret_for_provider()` is built on `get_secret_source()`, so presence checks never pull the key value into the caller's scope. `get_secret_name()` (→ `{provider_id}_api_key`) and `get_env_var_name()` (→ `PROVIDER_API_KEY`) own the naming conventions.
 
-- `includes/connectors.php` — `AICSL\Connectors` namespace. All WordPress hook callbacks: blocks DB writes, injects `Lazy_Auth`, filters the Connectors admin JS data to show "configured as constant" UI state, renders admin notices with Terminus commands, and filters `wpai_has_ai_credentials` so the AI plugin's settings page doesn't think no keys are configured.
+- `includes/connectors.php` — `AICSL\Connectors` namespace. All WordPress hook callbacks: blocks DB writes, injects `Lazy_Auth`, filters the Connectors admin JS data to show the externally-configured UI state, renders admin notices (Terminus commands on Pantheon, environment variable names elsewhere — `is_pantheon_site()` decides, overridable via the `aicsl_is_pantheon_site` filter), and filters `wpai_has_ai_credentials` so the AI plugin's settings page doesn't think no keys are configured.
 
 - `ai-connector-secure-layer.php` — entry point, registers all hooks.
 
 ### Admin UI integration
 
-The Connectors page is a JS SPA. The plugin manipulates its data via the `script_module_data_options-connectors-wp-admin` filter at priority 11 (after WP's 10), setting `keySource: 'constant'` and `isConnected: true` for providers with a configured secret. Admin notices above the SPA show Terminus commands for unconfigured providers.
+The Connectors page is a JS SPA. The plugin manipulates its data via the `script_module_data_options-connectors-wp-admin` filter at priority 11 (after WP's 10), setting `isConnected: true` and a `keySource` matching where the key actually lives — `'env'` for environment variables, `'constant'` for Pantheon Secrets (core has no `'secret'` source, and the SPA treats `'env'` and `'constant'` identically: read-only field, masked value). Admin notices above the SPA show setup instructions for unconfigured providers.
+
+Since WP 7.1, core resolves `{PROVIDER}_API_KEY` environment variables and constants for AI connectors itself (`_wp_connectors_get_api_key_source()`), and `php-ai-client`'s `ProviderRegistry` does the same when no explicit authentication is registered. What this plugin adds on top is blocking `wp_options` writes entirely and resolving keys from Pantheon Secrets, which neither core nor the client knows about.
 
 ### Test strategy
 
@@ -114,4 +116,4 @@ Unit tests (`tests/Unit/`) run without WordPress. WP AI Client classes are stubb
 
 ### Adding a new provider
 
-No code changes required — the plugin reads all connectors from `wp_get_connectors()` dynamically. Set a Terminus secret following the `{provider_id}_api_key` naming convention and the provider will be picked up automatically.
+No code changes required — the plugin reads all connectors from `wp_get_connectors()` dynamically. Set a Terminus secret following the `{provider_id}_api_key` naming convention (or a `{PROVIDER_ID}_API_KEY` environment variable) and the provider will be picked up automatically.

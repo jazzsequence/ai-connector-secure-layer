@@ -6,7 +6,8 @@
  *   wp_connectors_init  — blocks DB writes for all AI connector options
  *   init:21             — injects Lazy_Auth into the AI client registry
  *   script_module_data_options-connectors-wp-admin:11 — updates UI state for configured providers
- *   admin_notices       — Terminus instructions for unconfigured providers on the Connectors page
+ *   admin_notices       — setup instructions for unconfigured providers on the Connectors page
+ *                         (Terminus commands on Pantheon, environment variables elsewhere)
  *
  * @package AICSL
  */
@@ -79,10 +80,19 @@ function inject_lazy_auth(): void {
 /**
  * Filters the data passed to the Connectors admin JS module.
  *
- * For providers with a configured secret, sets keySource to 'constant' (which
- * triggers the read-only "This API key is configured as a constant." UI state)
- * and isConnected to true (green Connected badge). This avoids the expensive
- * live API call that isProviderConfigured() would make for every page load.
+ * For providers with a configured secret, sets keySource to the source the key
+ * actually came from and isConnected to true (green Connected badge). Both 'env'
+ * and 'constant' put the field into the read-only "configured outside WordPress"
+ * UI state; core has no source for Pantheon Secrets, so those report as
+ * 'constant' — the closest match for "set outside the database, not editable here".
+ * Keys in environment variables report as 'env', which is what core already
+ * detects at priority 10; overriding those with 'constant' would mislabel them.
+ *
+ * The equivalence of 'env' and 'constant' is core's, not an assumption: the
+ * connectors SPA branches on
+ * `isExternallyConfigured = keySource === "env" || keySource === "constant"`
+ * (wp-includes/build/routes/connectors-home/content.js as of 7.1) and uses that
+ * single flag for the read-only field and the masked value.
  *
  * @param array<string, mixed> $data Script module data passed by WordPress to the Connectors admin JS.
  * @return array<string, mixed>
@@ -97,11 +107,12 @@ function filter_script_module_data( array $data ): array {
 			continue;
 		}
 
-		if ( ! \AICSL\Secrets\has_secret_for_provider( $id ) ) {
+		$source = \AICSL\Secrets\get_secret_source( $id );
+		if ( null === $source ) {
 			continue;
 		}
 
-		$data['connectors'][ $id ]['authentication']['keySource']   = 'constant';
+		$data['connectors'][ $id ]['authentication']['keySource']   = 'env' === $source ? 'env' : 'constant';
 		$data['connectors'][ $id ]['authentication']['isConnected'] = true;
 	}
 
@@ -138,6 +149,43 @@ function filter_has_ai_credentials( bool $has_credentials, array $connectors ): 
 }
 
 /**
+ * Returns true when the site is running on Pantheon with the Secrets API available.
+ *
+ * Determines which set of instructions the admin notice shows: Terminus commands on
+ * Pantheon, environment variables everywhere else. Telling a non-Pantheon admin to
+ * run `terminus secret:site:set` is instructions they cannot follow.
+ */
+function is_pantheon_site(): bool {
+	/**
+	 * Filters whether this site should be treated as a Pantheon site.
+	 *
+	 * Controls which setup instructions the Connectors admin notice renders. Useful on
+	 * a Pantheon site that deliberately configures keys through environment variables
+	 * instead of Secrets, and it gives the detection a seam for tests — the Secrets API
+	 * is a bare function that cannot otherwise be undefined once loaded.
+	 *
+	 * @param bool $is_pantheon Whether the Pantheon Secrets API is available.
+	 */
+	return (bool) apply_filters( 'aicsl_is_pantheon_site', function_exists( 'pantheon_get_secret' ) );
+}
+
+/**
+ * Returns the Pantheon site name to use in Terminus command examples.
+ *
+ * PANTHEON_SITE_NAME is set on every Pantheon environment and is the machine name
+ * Terminus expects. Falls back to a slug of the site title, which is only a guess.
+ */
+function get_terminus_site_name(): string {
+	$site_name = getenv( 'PANTHEON_SITE_NAME' );
+
+	if ( is_string( $site_name ) && '' !== $site_name ) {
+		return $site_name;
+	}
+
+	return sanitize_title( get_bloginfo( 'name' ) );
+}
+
+/**
  * Shows admin notices on the Connectors page for unconfigured providers.
  *
  * The Connectors page is a JS SPA but renders inside the standard wp-admin
@@ -164,21 +212,40 @@ function show_admin_notices(): void {
 		return;
 	}
 
+	$on_pantheon = is_pantheon_site();
+
 	echo '<div class="notice notice-info"><p>';
-	echo '<strong>' . esc_html__( 'AI keys managed via Pantheon Secrets', 'ai-connector-secure-layer' ) . '</strong><br>';
-	esc_html_e(
-		'This site manages AI provider API keys through Pantheon Secrets — not through this form. Keys entered here cannot be saved. To connect a provider, run the Terminus command for it:',
-		'ai-connector-secure-layer'
-	);
+
+	if ( $on_pantheon ) {
+		echo '<strong>' . esc_html__( 'AI keys managed via Pantheon Secrets', 'ai-connector-secure-layer' ) . '</strong><br>';
+		esc_html_e(
+			'This site manages AI provider API keys through Pantheon Secrets — not through this form. Keys entered here cannot be saved. To connect a provider, run the Terminus command for it:',
+			'ai-connector-secure-layer'
+		);
+	} else {
+		echo '<strong>' . esc_html__( 'AI keys managed outside the database', 'ai-connector-secure-layer' ) . '</strong><br>';
+		esc_html_e(
+			'This site reads AI provider API keys from environment variables — not from this form. Keys entered here cannot be saved. To connect a provider, set its environment variable at the server level:',
+			'ai-connector-secure-layer'
+		);
+	}
+
 	echo '</p><ul>';
 
 	foreach ( $unconfigured as $id => $data ) {
-		$secret_name   = \AICSL\Secrets\get_secret_name( $id );
 		$provider_name = $data['name'];
-		$site_name     = sanitize_title( get_bloginfo( 'name' ) );
 
 		echo '<li>' . esc_html( $provider_name ) . ': ';
-		echo '<code>' . esc_html( "terminus secret:site:set {$site_name} {$secret_name} YOUR_KEY --type=runtime --scope=web,user" ) . '</code>';
+
+		if ( $on_pantheon ) {
+			$secret_name = \AICSL\Secrets\get_secret_name( $id );
+			$site_name   = get_terminus_site_name();
+			echo '<code>' . esc_html( "terminus secret:site:set {$site_name} {$secret_name} YOUR_KEY --type=runtime --scope=web,user" ) . '</code>';
+		} else {
+			$env_var_name = \AICSL\Secrets\get_env_var_name( $id );
+			echo '<code>' . esc_html( "{$env_var_name}=YOUR_KEY" ) . '</code>';
+		}
+
 		echo '</li>';
 	}
 

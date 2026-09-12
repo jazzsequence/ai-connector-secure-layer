@@ -89,6 +89,101 @@ class SecretsTest extends TestCase {
 	}
 
 	// -------------------------------------------------------------------------
+	// get_secret_source()
+	// -------------------------------------------------------------------------
+
+	public function test_get_secret_source_is_pantheon_when_pantheon_secret_exists(): void {
+		$GLOBALS['_test_pantheon_secrets']['anthropic_api_key'] = 'sk-ant-from-pantheon';
+
+		$this->assertSame( 'pantheon', \AICSL\Secrets\get_secret_source( 'anthropic' ) );
+	}
+
+	public function test_get_secret_source_prefers_pantheon_over_env_var(): void {
+		$GLOBALS['_test_pantheon_secrets']['anthropic_api_key'] = 'sk-ant-from-pantheon';
+		putenv( 'ANTHROPIC_API_KEY=sk-ant-from-env' );
+
+		$this->assertSame( 'pantheon', \AICSL\Secrets\get_secret_source( 'anthropic' ) );
+	}
+
+	public function test_get_secret_source_is_env_when_only_env_var_set(): void {
+		putenv( 'ANTHROPIC_API_KEY=sk-ant-env-only' );
+
+		$this->assertSame( 'env', \AICSL\Secrets\get_secret_source( 'anthropic' ) );
+	}
+
+	public function test_get_secret_source_is_env_when_pantheon_secret_is_empty(): void {
+		$GLOBALS['_test_pantheon_secrets']['anthropic_api_key'] = '';
+		putenv( 'ANTHROPIC_API_KEY=sk-ant-from-env' );
+
+		$this->assertSame( 'env', \AICSL\Secrets\get_secret_source( 'anthropic' ) );
+	}
+
+	public function test_get_secret_source_is_null_when_nothing_configured(): void {
+		$this->assertNull( \AICSL\Secrets\get_secret_source( 'anthropic' ) );
+	}
+
+	public function test_get_secret_source_is_null_when_env_var_is_empty(): void {
+		putenv( 'ANTHROPIC_API_KEY=' );
+
+		$this->assertNull( \AICSL\Secrets\get_secret_source( 'anthropic' ) );
+	}
+
+	// -------------------------------------------------------------------------
+	// resolve_secret() — the invariant the two wrappers depend on
+	// -------------------------------------------------------------------------
+
+	/**
+	 * @dataProvider secret_configuration_provider
+	 *
+	 * @param string|null $pantheon_secret Value the mocked Pantheon Secrets API returns.
+	 * @param string|false $env_value      Value to put in the environment, or false for unset.
+	 * @param string|null $expected_source Expected resolved source.
+	 * @param string|null $expected_value  Expected resolved key.
+	 */
+	public function test_source_and_value_always_describe_the_same_resolution(
+		?string $pantheon_secret,
+		$env_value,
+		?string $expected_source,
+		?string $expected_value
+	): void {
+		$GLOBALS['_test_pantheon_secrets']['anthropic_api_key'] = $pantheon_secret;
+		if ( false !== $env_value ) {
+			putenv( 'ANTHROPIC_API_KEY=' . $env_value );
+		}
+
+		$this->assertSame( $expected_source, \AICSL\Secrets\get_secret_source( 'anthropic' ) );
+		$this->assertSame( $expected_value, \AICSL\Secrets\get_secret_for_provider( 'anthropic' ) );
+
+		// A source with no key, or a key with no source, is the failure mode this
+		// invariant exists to prevent: the admin UI would show Connected while
+		// Lazy_Auth::getApiKey() throws at request time.
+		$this->assertSame(
+			null === $expected_source,
+			null === $expected_value,
+			'source and value must be null together or set together'
+		);
+	}
+
+	/**
+	 * @return array<string, array{0: string|null, 1: string|false, 2: string|null, 3: string|null}>
+	 */
+	public static function secret_configuration_provider(): array {
+		return [
+			'pantheon only'             => [ 'pantheon-key', false, 'pantheon', 'pantheon-key' ],
+			'env only'                  => [ null, 'env-key', 'env', 'env-key' ],
+			'pantheon wins over env'    => [ 'pantheon-key', 'env-key', 'pantheon', 'pantheon-key' ],
+			'empty pantheon falls back' => [ '', 'env-key', 'env', 'env-key' ],
+			'empty env is not a key'    => [ null, '', null, null ],
+			'nothing configured'        => [ null, false, null, null ],
+			// "0" is discarded from Pantheon (! empty) but kept from env ('' !== $v).
+			// Asymmetric, pre-dates resolve_secret(), pinned here so a future tidy-up
+			// of either predicate is a deliberate choice rather than an accident.
+			'zero pantheon falls back'  => [ '0', 'env-key', 'env', 'env-key' ],
+			'zero env is a key'         => [ null, '0', 'env', '0' ],
+		];
+	}
+
+	// -------------------------------------------------------------------------
 	// has_secret_for_provider()
 	// -------------------------------------------------------------------------
 
