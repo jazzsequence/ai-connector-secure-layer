@@ -26,6 +26,7 @@ class ConnectorsTest extends WP_UnitTestCase {
 		$this->original_pagenow = $GLOBALS['pagenow'] ?? null;
 		putenv( 'ANTHROPIC_API_KEY' );
 		putenv( 'GOOGLE_API_KEY' );
+		putenv( 'PANTHEON_SITE_NAME' );
 		unset( $GLOBALS['_test_pantheon_secrets'] );
 
 		// Register a stub anthropic provider so inject_lazy_auth() can set
@@ -325,20 +326,36 @@ class ConnectorsTest extends WP_UnitTestCase {
 	}
 
 	public function test_admin_notice_is_skipped_when_every_provider_is_configured(): void {
-		add_filter( 'aicsl_is_pantheon_site', '__return_false' );
-
 		// Cover every registered AI provider, not just the two built-ins we know by name.
+		$provider_ids = [];
 		foreach ( wp_get_connectors() as $id => $data ) {
 			if ( 'ai_provider' === ( $data['type'] ?? '' ) ) {
-				putenv( \AICSL\Secrets\get_env_var_name( $id ) . '=configured' );
+				$provider_ids[] = $id;
 			}
 		}
 
-		$output = $this->render_notices();
+		/*
+		 * Without this the test is vacuous: no providers means the setup loop is a
+		 * no-op, the notice returns early, and the assertion below passes having
+		 * proved nothing.
+		 */
+		$this->assertNotEmpty( $provider_ids, 'expected at least one registered AI provider' );
 
-		foreach ( wp_get_connectors() as $id => $data ) {
-			if ( 'ai_provider' === ( $data['type'] ?? '' ) ) {
-				putenv( \AICSL\Secrets\get_env_var_name( $id ) );
+		// Snapshot rather than blindly unset — an ambient key must survive the test.
+		$restore = [];
+		foreach ( $provider_ids as $id ) {
+			$env_var_name             = \AICSL\Secrets\get_env_var_name( $id );
+			$restore[ $env_var_name ] = getenv( $env_var_name );
+			putenv( $env_var_name . '=configured' );
+		}
+
+		try {
+			$output = $this->render_notices();
+		} finally {
+			// finally, so a throw in render_notices() cannot leak env state into the
+			// rest of the run — setUp()/tearDown() only know the two built-ins by name.
+			foreach ( $restore as $env_var_name => $previous ) {
+				putenv( false === $previous ? $env_var_name : $env_var_name . '=' . $previous );
 			}
 		}
 

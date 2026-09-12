@@ -178,8 +178,8 @@ class SecretsTest extends TestCase {
 			// "0" is discarded from Pantheon (! empty) but kept from env ('' !== $v).
 			// Asymmetric, pre-dates resolve_secret(), pinned here so a future tidy-up
 			// of either predicate is a deliberate choice rather than an accident.
-			'zero from pantheon falls back to env' => [ '0', 'env-key', 'env', 'env-key' ],
-			'zero from env is a key'    => [ null, '0', 'env', '0' ],
+			'zero pantheon falls back'  => [ '0', 'env-key', 'env', 'env-key' ],
+			'zero env is a key'         => [ null, '0', 'env', '0' ],
 		];
 	}
 
